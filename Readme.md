@@ -17,7 +17,7 @@ Este proyecto implica el desarrollo de un sistema de monitoreo para un concentra
 - Sensores de temperatura, humedad y radiación
 - Sensor LDR para detección de luz
 - Conexión a Internet para sincronización NTP y transmisión de datos
-- (Opcional) LED para indicación visual
+- (Opcional) LED para indicación visual (LED integrado en el módulo ESP32)
 
 ## Diagrama de Conexiones
 

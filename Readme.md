@@ -1,4 +1,4 @@
-# Documentación del Proyecto: Monitoreo de Concentrador Solar con ESP32
+# Monitoreo de Concentrador Solar con ESP32: Documentación del Proyecto:
 
 ## Descripción del Proyecto
 

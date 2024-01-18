@@ -145,6 +145,9 @@ float leer_piranometro() {
 
 // Realiza la lectura del sensor de flujo
 float leer_flujoLiquido() {
+    void iniciarMedicionFlujo();
+    void finalizarMedicionFlujo();
+
     if (millis() - ultimoTiempoMuestreo > tiempoDeMuestreo) {
         ultimoTiempoMuestreo = millis();
         iniciarMedicionFlujo(); // Inicia la medición del flujo

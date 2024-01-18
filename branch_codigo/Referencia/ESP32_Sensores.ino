@@ -90,6 +90,7 @@ void loop() {
 }
 
 //$$$$$$$$$$$$$$$$$$$$$$$$$$$ FUNCIONES DE SENSORES $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+//! falta agregar calculos para conocer la radiación
 float leer_piranometro() {
     return analogRead(pinRADIACION);
 }

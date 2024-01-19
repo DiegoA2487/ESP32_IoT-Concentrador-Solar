@@ -8,6 +8,16 @@
   - manejar el ciclo de sueño y vigilia de un ESP32 en función de la luz ambiental, detectada a través de un sensor LDR. El propósito principal es ahorrar energía al poner el dispositivo en modo de sueño profundo durante la noche y despertarlo durante el día
 
   Este código está diseñado para ser utilizado en aplicaciones relacionadas con la energía solar y la monitorización ambiental, proporcionando una base para la recopilación de datos precisa y en tiempo real.
+
+!Pendientes:
+    ! No enviar NAN sino -1 o 0, ya que esto compromete los datos en la app movil
+    ! Trabajar por tareas
+    ! Log de fallas o mensajes en consola, especificando el id del dispositivo, para que este pueda ser reconocido en la app
+    ! Mejorar tarea de reconexión a red Mesh: Entrar a modo sueño despues de ciertos intentos, despertar despúes de un tiempo transcurrido para intentar reconectar
+
+?Aprendizajes:
+    ? Cada vez que uses client.println(), también llamer a client.stop() después para cerrar la conexión y liberar los recursos
+
 */
 
 #include <Arduino.h>
@@ -47,8 +57,11 @@ const char* password = "password";
 WiFiClient client;
 
 // Definiciones para el muestreo
-const unsigned long tiempoDeMuestreo = (5)*(60000);// Tiempo de muestreo: (min)*(60seg*1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
+const unsigned long tiempoDeMuestreo = (15)*(1000);//(5)*(60)*(1000);// Tiempo de muestreo: (min)*(seg)*(1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
 unsigned long tiempoAnterior = 0; // Guarda el último momento en que se tomó una muestra
+
+//Definiciones para el tiempo
+const unsigned long tiempoDeEspera = (10)*(1000);
 
 // CASO 1: Eficiencia según calor en material del punto focal
 //Definiciones para el cálculo de eficiencia según el Calor en el punto focal
@@ -149,20 +162,20 @@ void setup() {
 void loop() {
     // NOCHE?. Verifica si es de noche para entrar en modo de sueño profundo
     if (digitalRead(ldrPin) == HIGH) { // asumiendo que HIGH significa "noche"
-        Serial.printf(" Es de noche, entrando en modo de sueño profundo = %i \n" + digitalRead(ldrPin));
+        Serial.printf(" Es de noche, entrando en modo de sueño profundo = %i \n", digitalRead(ldrPin));
         sleepingLed();  // Efecto visual antes de entrar en hibernación
         esp_deep_sleep_start();  // Entrada en modo de sueño profundo
     }else {
         unsigned long tiempoActual = millis();
-        
+
         // Verificar si ha pasado el tiempo de muestreo
         if (tiempoActual - tiempoAnterior >= tiempoDeMuestreo) {
             tiempoAnterior = tiempoActual; // Actualizar el último momento de muestreo
 
-            // CONEXION. Verifica la conexión
+            // CONEXION. Verifica la conexión   //!No reconoce cuando se desconecta el servidor
             if (!client.connect(WiFi.gatewayIP(), 80)) {
-                Serial.println("Conexión fallida");
-                delay(10000);
+                Serial.printf("Conexión fallida... esperar %lu seg para volver a conectarse \n", tiempoDeEspera/1000);
+                delay(tiempoDeEspera);
                 return;
             }
 
@@ -286,6 +299,9 @@ void enviarDatos(String registro) {
     client.println(String("GET /?datos=") + registro + " HTTP/1.1\r\n" +
                  "Host: " + WiFi.gatewayIP().toString() + "\r\n" +
                  "Connection: close\r\n\r\n");
+
+    // Esperar y leer la respuesta del servidor (opcional)
+    // ...
 
     blinkLed(ledPin, 2, 250); // Parpadeo rápido al enviar datos
     client.stop();

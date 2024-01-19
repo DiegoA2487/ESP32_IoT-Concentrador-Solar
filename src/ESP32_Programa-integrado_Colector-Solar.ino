@@ -10,8 +10,9 @@
   Este código está diseñado para ser utilizado en aplicaciones relacionadas con la energía solar y la monitorización ambiental, proporcionando una base para la recopilación de datos precisa y en tiempo real.
 
 !Pendientes:
-    ! No enviar NAN sino -1 o 0, ya que esto compromete los datos en la app movil
+    //! No enviar NAN sino -1 o 0, ya que esto compromete los datos en la app movil
     ! Trabajar por tareas
+    ! Registro de tiempo del envio de los datos
     ! Log de fallas o mensajes en consola, especificando el id del dispositivo, para que este pueda ser reconocido en la app
     ! Mejorar tarea de reconexión a red Mesh: Entrar a modo sueño despues de ciertos intentos, despertar despúes de un tiempo transcurrido para intentar reconectar
 
@@ -57,11 +58,11 @@ const char* password = "password";
 WiFiClient client;
 
 // Definiciones para el muestreo
-const unsigned long tiempoDeMuestreo = (15)*(1000);//(5)*(60)*(1000);// Tiempo de muestreo: (min)*(seg)*(1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
+const unsigned long tiempoDeMuestreo = (10)*(1000); //(5)*(60)*(1000);// Tiempo de muestreo: (min)*(seg)*(1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
 unsigned long tiempoAnterior = 0; // Guarda el último momento en que se tomó una muestra
 
 //Definiciones para el tiempo
-const unsigned long tiempoDeEspera = (10)*(1000);
+const unsigned long tiempoDeEspera = (10)*(1000); //
 
 // CASO 1: Eficiencia según calor en material del punto focal
 //Definiciones para el cálculo de eficiencia según el Calor en el punto focal
@@ -107,9 +108,14 @@ public:
     }
 
     String toCSVString() {
-      // Formatea los datos en un string CSV
-      return timestamp + "," + String(R) + "," + String(Tc) + "," + String(Ta) + 
-             "," + String(Ha) + "," + String(E);
+        // Formatea los datos en un string CSV
+        String registroConcatenado = timestamp + "," + String(R) + "," + String(Tc) + "," + String(Ta) +
+                                     "," + String(Ha) + "," + String(E);
+
+        // Reemplaza cualquier "NAN" por "0.001"
+        registroConcatenado.replace("nan", "0.001");
+
+        return registroConcatenado;
     }
 
     float calcularEficienciaConTermopar(float tempInicial, float tempFinal, float irradiancia) {

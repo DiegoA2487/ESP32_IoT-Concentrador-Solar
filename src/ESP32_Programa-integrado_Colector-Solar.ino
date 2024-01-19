@@ -172,13 +172,6 @@ void loop() {
         if (tiempoActual - tiempoAnterior >= tiempoDeMuestreo) {
             tiempoAnterior = tiempoActual; // Actualizar el último momento de muestreo
 
-            // CONEXION. Verifica la conexión   //!No reconoce cuando se desconecta el servidor
-            if (!client.connect(WiFi.gatewayIP(), 80)) {
-                Serial.printf("Conexión fallida... esperar %lu seg para volver a conectarse \n", tiempoDeEspera/1000);
-                delay(tiempoDeEspera);
-                return;
-            }
-
             // Realizar acciones de muestreo
             // SENSORES. Lectura de sensores
             TempAndHumidity data = dht.getTempAndHumidity();    //Sensor de temperatura y humedad
@@ -292,17 +285,31 @@ void conectarWiFi() {   //! no entra al if que verifica si es de dia o noche y s
 
 
 void enviarDatos(String registro) {
+    String respuesta;
     // Enviar datos mediante HTTP GET
     // Reemplaza espacios en blanco con %20 en la cadena registro
     registro.replace(" ", "%20");
     Serial.println("Enviando datos..."+ registro);
-    client.println(String("GET /?datos=") + registro + " HTTP/1.1\r\n" +
-                 "Host: " + WiFi.gatewayIP().toString() + "\r\n" +
-                 "Connection: close\r\n\r\n");
 
-    // Esperar y leer la respuesta del servidor (opcional)
-    // ...
+    if (client.connect(WiFi.gatewayIP(), 80)) {     // CONEXION. Verifica la conexión
+        client.println(String("GET /?datos=") + registro + " HTTP/1.1\r\n" +
+                     "Host: " + WiFi.gatewayIP().toString() + "\r\n" +
+                     "Connection: close\r\n\r\n");
 
-    blinkLed(ledPin, 2, 250); // Parpadeo rápido al enviar datos
-    client.stop();
+        // Espera a que el servidor responda
+        while(client.connected() && !client.available()){
+            delay(10); // Pequeña espera para la disponibilidad de datos
+        }
+
+        // Leer y mostrar la respuesta
+        while(client.available()){
+            respuesta = client.readStringUntil('\r');       //se queda únicamente con el último texto del salto de renglón que corresponde al mensaje final.
+        }
+        Serial.print("Respuesta del servidor: " + respuesta);
+
+        blinkLed(ledPin, 2, 250); // Parpadeo rápido al enviar datos
+        client.stop(); // Cierra la conexión
+    } else {
+        Serial.println("Fallo la conexion con el servidor.");
+    }
 }

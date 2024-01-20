@@ -26,6 +26,8 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <WiFi.h>
+#include <time.h>
+#include <ESP32Time.h>
 
 //      ++++++++++++++++++  1. SENSORES Y PERIFERICOS  ++++++++
 // Definiciones para MAX6675 [Termopar]
@@ -57,8 +59,14 @@ const char* ssid = "ESP8266_Mesh_Node";
 const char* password = "password";
 WiFiClient client;
 
+// Configuración del servidor NTP
+const char* ntpServer = "mx.pool.ntp.org";
+const long gmtOffset_sec = (-6)*3600;  // GMT -6 para México
+const int daylightOffset_sec = 3600;  // Horario de verano
+ESP32Time rtc;
+
 // Definiciones para el muestreo
-const unsigned long tiempoDeMuestreo = (10)*(1000); //(5)*(60)*(1000);// Tiempo de muestreo: (min)*(seg)*(1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
+const unsigned long tiempoDeMuestreo = (10)*(1000); // (5)*(60)*(1000);// Tiempo de muestreo: (min)*(seg)*(1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
 unsigned long tiempoAnterior = 0; // Guarda el último momento en que se tomó una muestra
 
 //Definiciones para el tiempo
@@ -66,14 +74,15 @@ const unsigned long tiempoDeEspera = (10)*(1000); //
 
 // CASO 1: Eficiencia según calor en material del punto focal
 //Definiciones para el cálculo de eficiencia según el Calor en el punto focal
-#define masaMaterialFocal  0.2                    // Masa del material en el punto focal, en kilogramos : 0.2 kg
-#define calorEspecificoMaterial  0.9              // Calor específico del material en el punto focal, en J/kg°C
+#define masaMaterialFocal  0.75                    // Masa del material en el punto focal, en kilogramos : 0.75 kg
+#define calorEspecificoMaterial  500              // Calor específico del material en el punto focal, en J/kg°C
 
 // CASO 2: Eficiencia según calor en liquido
 // Definiciones para el cálculo de eficiencia
-#define calorEspecificoLiquido  4.18    // Calor específico del líquido en el colector, en J/g°C
-#define radioDiscoParabolico  0.41                // Radio del disco parabólico en metros (82 cm de diámetro)
-#define areaDiscoParabolico  (PI * pow(radioDiscoParabolico, 2)) // Área del disco parabólico en m²
+//#define calorEspecificoLiquido  4.18    // Calor específico del líquido en el colector, en J/g°C
+#define radioDiscoParabolico  0.405                // Radio del disco parabólico en metros {81 cm de diámetro}
+#define profundidadDiscoParabolico 0.06           // Profundidad del disco parabólico en metros {6cm}
+#define areaDiscoParabolico  (PI * radioDiscoParabolico * sqrt(pow(radioDiscoParabolico, 2) + 4 * pow(profundidadDiscoParabolico, 2))) // Área del disco parabólico en m²
 float temperaturaInicial = 25.0;                // Temperatura inicial del material en el punto focal, en °C
 
 
@@ -90,11 +99,11 @@ public:
 
     String timestamp; // Marca de tiempo de la muestra
 
-    RegistroData() : Tc(0), Ta(0), Ha(0), R(0), Fl(0), E(0), timestamp("") {}
+    RegistroData() : Tc(temperaturaInicial), Ta(0), Ha(0), R(0), Fl(0), E(0), Ti(temperaturaInicial), timestamp("") {}
 
     void updateData(float tempColector, float tempAmb, float humAmb, float radiacion, 
                     float flujoLiquido, String time) {
-      Ti= Tc; // Asigna la temperatura inicial a Ti
+      Ti= Tc; // Asigna la temperatura de la muestra anterior
       Tc = tempColector;
       Ta = tempAmb;
       Ha = humAmb;
@@ -114,17 +123,34 @@ public:
 
         // Reemplaza cualquier "NAN" por "0.001"
         registroConcatenado.replace("nan", "0.001");
+        registroConcatenado.replace("inf", "0.002");
 
         return registroConcatenado;
     }
 
-    float calcularEficienciaConTermopar(float tempInicial, float tempFinal, float irradiancia) {
+    //CALCULLO DE LA EFICIENCIA: Eout/Ein
+    float calcularEficienciaConTermopar(float tempInicial, float tempFinal, float irradiancia){
+
+        // Calculo de Energía absorbida (Eout [J]= m[kg] x C[J/kg°C] x (Tfinal-Tinicial)[°C}])
         float deltaTemp = tempFinal - tempInicial;
         float energiaAbsorbida = masaMaterialFocal * calorEspecificoMaterial * deltaTemp;
-        float energiaIncidente = irradiancia * areaDiscoParabolico; // Energía solar incidente en J
+        // Mostrar Energía Absorbida
+        printf("\nEnergia Absorbida (Eout [J]) = %.2f [kg] x %.2f [J/kg°C] x %.2f [°C] = %.2f [J]\n",
+               masaMaterialFocal, calorEspecificoMaterial, deltaTemp, energiaAbsorbida);
 
-        return (energiaAbsorbida / energiaIncidente) * 100.0;
+        // Calculo de Energía incidente (Ein [J] = I[W/m2] x A[m2] x t[seg])     //unsigned long tiempoDeMuestreo_Temporal = 5*60*60*1000;  //{para hacer prueba}
+        float energiaIncidente = irradiancia * areaDiscoParabolico * (tiempoDeMuestreo / (60*1000));
+        // Mostrar Energía Incidente
+        printf("Energia Incidente (Ein [J]) = %.2f [W/m2] x %.2f [m2] x %d [seg] = %.2f [J]\n",
+               irradiancia, areaDiscoParabolico, tiempoDeMuestreo / (60*1000), energiaIncidente);
+        
+        //Calculo de la eficiencia
+        float n = fabs(energiaAbsorbida / energiaIncidente);
+        // Mostrar la eficiencia
+        printf("Eficiencia (n) = fabs(%.2f [J] / %.2f [J]) = %.2f\n", energiaAbsorbida, energiaIncidente, n);
+        return n;
     }
+
 /*CASO 2: 
     float calcularEficienciaConLiquido(float irradiancia, float flujoLiquido) {
         // Energía absorbida por el líquido (suponiendo un aumento de temperatura constante)
@@ -163,6 +189,8 @@ void setup() {
 
     //Bandera de reinicio
     Serial.println("Sistema reiniciado");
+
+    sincronizarRTC();
 }
 
 void loop() {
@@ -184,7 +212,28 @@ void loop() {
             Serial.printf("\n Temp_amb: %0.2f , Hum_amb: %0.2f ", data.temperature, data.humidity);
 
             // REGISTRO. Registro de datos
-            registroData.updateData(leer_termopar(), data.temperature, data.humidity, leer_piranometro(), 999 /*leer_flujoLiquido()*/, "fecha y hora");
+            String timeStampLocal= String(rtc.getDateTime());
+            timeStampLocal.replace(",","");        //Remplaza la coma "," para no tener conflictos con otras funciones en Gsheet
+
+            /*
+            Cálculo de la eficiencia de un horno solar de disco parabólico
+
+            Variables y Valores de Ejemplo:
+            - Irradiación Solar: 500 W/m²
+            - Diámetro del Disco Parabólico: 0.81 m (81 cm)
+            - Profundidad del Disco Parabólico: 0.06 m (6 cm)
+            - Masa del Tazón de Acero Inoxidable: 0.73 kg
+            - Calor Específico del Acero Inoxidable: 500 J/kg°C
+            - Temperatura Inicial punto focal: 72°C
+            - Temperatura Final punto focal: 100°C
+            - Tiempo de Muestreo: 5 minutos (convertido a horas en el cálculo)
+
+            Eficiencia debe ser de 13%
+
+            ?registroData.updateData(100, data.temperature, data.humidity, 500, 999, timeStampLocal)
+            */
+
+            registroData.updateData(leer_termopar(), data.temperature, data.humidity, leer_piranometro(), 999 /*leer_flujoLiquido()*/, timeStampLocal);
             
             // ENVIO. Envio de datos
             enviarDatos(registroData.toCSVString());
@@ -289,7 +338,6 @@ void conectarWiFi() {   //! no entra al if que verifica si es de dia o noche y s
     digitalWrite(ledPin, HIGH); // LED constante cuando está conectado
 }
 
-
 void enviarDatos(String registro) {
     String respuesta;
     // Enviar datos mediante HTTP GET
@@ -317,5 +365,19 @@ void enviarDatos(String registro) {
         client.stop(); // Cierra la conexión
     } else {
         Serial.println("Fallo la conexion con el servidor.");
+    }
+}
+
+void sincronizarRTC() {
+    Serial.println("Sincronización de RTC con NTP en curso");
+
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    delay(6000); // Espera para que la hora se sincronice
+
+    struct tm timeinfo;
+    if(!getLocalTime(&timeinfo)){
+        Serial.println("Fallo en la sincronización con NTP");
+    } else {
+        Serial.println("RTC sincronizado: " + rtc.getDateTime());
     }
 }

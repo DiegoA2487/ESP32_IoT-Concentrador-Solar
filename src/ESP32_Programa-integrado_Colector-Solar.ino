@@ -116,6 +116,12 @@ public:
       timestamp = time;
     }
 
+    void imprimirValores(){     //para imprimir en consola al estilo tabla
+        // Imprimir valores en consola
+        Serial.println("\n      TimeStamp          |   R    |   Tc   |   Ta   |   Ha   |    E   |   Ti   |   Fl   ");
+         Serial.printf("%s | %6.2f | %6.2f | %6.2f | %6.2f | %6.2f | %6.2f | %6.2f \n\n", timestamp.c_str(), R, Tc, Ta, Ha, E, Ti, Fl);
+    }
+
     String toCSVString() {
         // Formatea los datos en un string CSV
         String registroConcatenado = timestamp + "," + String(R) + "," + String(Tc) + "," + String(Ta) +
@@ -207,13 +213,12 @@ void loop() {
             tiempoAnterior = tiempoActual; // Actualizar el último momento de muestreo
 
             // Realizar acciones de muestreo
-            // SENSORES. Lectura de sensores
-            TempAndHumidity data = dht.getTempAndHumidity();    //Sensor de temperatura y humedad
-            Serial.printf("\n Temp_amb: %0.2f , Hum_amb: %0.2f ", data.temperature, data.humidity);
-
             // REGISTRO. Registro de datos
             String timeStampLocal= String(rtc.getDateTime());
             timeStampLocal.replace(",","");        //Remplaza la coma "," para no tener conflictos con otras funciones en Gsheet
+
+            // SENSORES. Lectura de sensores
+            TempAndHumidity data = dht.getTempAndHumidity();    //Sensor de temperatura y humedad
 
             /*
             Cálculo de la eficiencia de un horno solar de disco parabólico
@@ -234,7 +239,8 @@ void loop() {
             */
 
             registroData.updateData(leer_termopar(), data.temperature, data.humidity, leer_piranometro(), 999 /*leer_flujoLiquido()*/, timeStampLocal);
-            
+            registroData.imprimirValores();
+
             // ENVIO. Envio de datos
             enviarDatos(registroData.toCSVString());
 
@@ -248,7 +254,7 @@ float leer_piranometro() {
     int lecturaADC = analogRead(pinRADIACION);
     float voltaje = (lecturaADC / 4095.0) * 3.33; // Asumiendo que el rango máximo del ADC es 5V
     float irradiacion = voltaje * (1800.0 / 3.33); // Conversión basada en la calibración del piranómetro
-    Serial.printf("\n Radiacion: %0.2f \n", irradiacion);
+    //Serial.printf("\n Radiacion: %0.2f \n", irradiacion);
     return irradiacion;
 }
 
@@ -304,7 +310,7 @@ double leer_termopar() {
     }
 
     v >>= 3; // Descarta los bits de estado
-    Serial.printf("\n Temp colector: %0.2f", v * 0.25);
+    //Serial.printf("\n Temp colector: %0.2f", v * 0.25);
     return v * 0.25; // Calcula la temperatura
 }
 

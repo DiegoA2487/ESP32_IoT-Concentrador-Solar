@@ -15,7 +15,8 @@
     ! Registro de tiempo del envio de los datos
     ! Log de fallas o mensajes en consola, especificando el id del dispositivo, para que este pueda ser reconocido en la app
     ! Mejorar tarea de reconexión a red Mesh: Entrar a modo sueño despues de ciertos intentos, despertar despúes de un tiempo transcurrido para intentar reconectar
-
+    ! Que envie mensaje de que está dormido
+    ! Manejo de notificaciones y código de errores
 ?Aprendizajes:
     ? Cada vez que uses client.println(), también llamer a client.stop() después para cerrar la conexión y liberar los recursos
 
@@ -66,7 +67,7 @@ const int daylightOffset_sec = 3600;  // Horario de verano
 ESP32Time rtc;
 
 // Definiciones para el muestreo
-const unsigned long tiempoDeMuestreo = (10)*(1000); // (5)*(60)*(1000);// Tiempo de muestreo: (min)*(seg)*(1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
+const unsigned long tiempoDeMuestreo = (5)*(60)*(1000);// Tiempo de muestreo: (min)*(seg)*(1000ms) ; 1 hora > (60)*(60*1000)= (3600000 milisegundos)
 unsigned long tiempoAnterior = 0; // Guarda el último momento en que se tomó una muestra
 
 //Definiciones para el tiempo
@@ -141,14 +142,14 @@ public:
         float deltaTemp = tempFinal - tempInicial;
         float energiaAbsorbida = masaMaterialFocal * calorEspecificoMaterial * deltaTemp;
         // Mostrar Energía Absorbida
-        printf("\nEnergia Absorbida (Eout [J]) = %.2f [kg] x %.2f [J/kg°C] x %.2f [°C] = %.2f [J]\n",
-               masaMaterialFocal, calorEspecificoMaterial, deltaTemp, energiaAbsorbida);
+        printf("\nEnergia Absorbida (Eout [J]) = %.2f [kg] x %.2f [J/kg°C] x (%.2f [°C] - %.2f [°C]) = %.2f [J]\n",
+               masaMaterialFocal, calorEspecificoMaterial, tempFinal, tempInicial, energiaAbsorbida);
 
         // Calculo de Energía incidente (Ein [J] = I[W/m2] x A[m2] x t[seg])     //unsigned long tiempoDeMuestreo_Temporal = 5*60*60*1000;  //{para hacer prueba}
-        float energiaIncidente = irradiancia * areaDiscoParabolico * (tiempoDeMuestreo / (60*1000));
+        float energiaIncidente = irradiancia * areaDiscoParabolico * (tiempoDeMuestreo / 1000);
         // Mostrar Energía Incidente
         printf("Energia Incidente (Ein [J]) = %.2f [W/m2] x %.2f [m2] x %d [seg] = %.2f [J]\n",
-               irradiancia, areaDiscoParabolico, tiempoDeMuestreo / (60*1000), energiaIncidente);
+               irradiancia, areaDiscoParabolico, tiempoDeMuestreo / 1000, energiaIncidente);
         
         //Calculo de la eficiencia
         float n = fabs(energiaAbsorbida / energiaIncidente);
